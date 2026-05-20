@@ -1,3 +1,4 @@
+// components/TableControls.tsx
 import React, { useState } from 'react';
 import type { FindReplaceOptions } from '../types';
 
@@ -7,7 +8,9 @@ interface TableControlsProps {
     onClearAll: () => void;
     onFindReplace: (options: FindReplaceOptions) => void;
     onExportData: () => void;
+    onExportCSV: () => void;
     onImportData: (jsonData: string) => void;
+    onImportCSV: () => void;
     canUndo: boolean;
     canRedo: boolean;
     onUndo: () => void;
@@ -20,7 +23,9 @@ export const TableControls: React.FC<TableControlsProps> = ({
     onClearAll,
     onFindReplace,
     onExportData,
+    onExportCSV,
     onImportData,
+    onImportCSV,
     canUndo,
     canRedo,
     onUndo,
@@ -34,12 +39,6 @@ export const TableControls: React.FC<TableControlsProps> = ({
     const [showImportExport, setShowImportExport] = useState(false);
     const [importJson, setImportJson] = useState('');
 
-    // ЭКСПОРТ В CSV
-    const handleExportCSV = () => {
-        onExportData();
-        // ВЫЗОВЕТ ЭКСПОРТ JSON, НО МОЖНО РАСШИРИТЬ
-    };
-
     const handleFindReplaceLocal = () => {
         onFindReplace({
             searchText: findText,
@@ -48,18 +47,27 @@ export const TableControls: React.FC<TableControlsProps> = ({
             wholeWord: wholeWord
         });
         setShowFindReplace(false);
+        setFindText('');
+        setReplaceText('');
+        setMatchCase(false);
+        setWholeWord(false);
+    };
+
+    const handleCloseImportExport = () => {
+        setShowImportExport(false);
+        setImportJson('');
+    };
+
+    const handleImportDataLocal = () => {
+        if (importJson.trim()) {
+            onImportData(importJson);
+            setImportJson('');
+            handleCloseImportExport();
+        }
     };
 
     return (
-        <div style={{
-            padding: '10px',
-            backgroundColor: '#f5f5f5',
-            borderBottom: '1px solid #ddd',
-            display: 'flex',
-            gap: '10px',
-            flexWrap: 'wrap',
-            alignItems: 'center'
-        }}>
+        <div style={toolbarStyle}>
             <button onClick={onAddRow} style={buttonStyle}>➕ Строку</button>
             <button onClick={onAddColumn} style={buttonStyle}>➕ Столбец</button>
             
@@ -68,68 +76,215 @@ export const TableControls: React.FC<TableControlsProps> = ({
             
             <button onClick={() => setShowFindReplace(!showFindReplace)} style={buttonStyle}>🔍 Найти/Заменить</button>
             
-            <button onClick={() => setShowImportExport(!showImportExport)} style={buttonStyle}>📁 Импорт/Экспорт</button>
+            <button onClick={() => setShowImportExport(true)} style={buttonStyle}>📁 Импорт/Экспорт</button>
             
             <button onClick={onClearAll} style={{ ...buttonStyle, backgroundColor: '#ff4444', color: 'white' }}>🗑 Очистить всё</button>
 
-            {/* МОДАЛКА ПОИСКА */}
+            {/* МОДАЛКА ПОИСКА - ТОЖЕ УЛУЧШИМ */}
             {showFindReplace && (
-                <div style={modalStyle}>
-                    <input type="text" placeholder="Найти..." value={findText} onChange={(e) => setFindText(e.target.value)} style={inputStyle} />
-                    <input type="text" placeholder="Заменить на..." value={replaceText} onChange={(e) => setReplaceText(e.target.value)} style={inputStyle} />
-                    <div>
-                        <label><input type="checkbox" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} /> Учитывать регистр</label>
-                        <label><input type="checkbox" checked={wholeWord} onChange={(e) => setWholeWord(e.target.checked)} /> Только целые слова</label>
+                <div style={overlayStyle} onClick={() => setShowFindReplace(false)}>
+                    <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+                        <h3 style={modalTitleStyle}>Найти и заменить</h3>
+                        <input 
+                            type="text" 
+                            placeholder="Найти..." 
+                            value={findText} 
+                            onChange={(e) => setFindText(e.target.value)} 
+                            style={modalInputStyle} 
+                        />
+                        <input 
+                            type="text" 
+                            placeholder="Заменить на..." 
+                            value={replaceText} 
+                            onChange={(e) => setReplaceText(e.target.value)} 
+                            style={modalInputStyle} 
+                        />
+                        <div style={checkboxGroupStyle}>
+                            <label style={checkboxStyle}>
+                                <input type="checkbox" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} />
+                                Учитывать регистр
+                            </label>
+                            <label style={checkboxStyle}>
+                                <input type="checkbox" checked={wholeWord} onChange={(e) => setWholeWord(e.target.checked)} />
+                                Только целые слова
+                            </label>
+                        </div>
+                        <div style={modalButtonGroupStyle}>
+                            <button onClick={handleFindReplaceLocal} style={primaryButtonStyle}>Заменить все</button>
+                            <button onClick={() => setShowFindReplace(false)} style={secondaryButtonStyle}>Отмена</button>
+                        </div>
                     </div>
-                    <button onClick={handleFindReplaceLocal} style={buttonPrimaryStyle}>Заменить все</button>
-                    <button onClick={() => setShowFindReplace(false)} style={buttonStyle}>Отмена</button>
                 </div>
             )}
 
-            {/* МОДАЛКА ИМПОРТА/ЭКСПОРТА */}
+            {/* МОДАЛКА ИМПОРТА/ЭКСПОРТА - КАК ПРИ СОЗДАНИИ ДОКУМЕНТА */}
             {showImportExport && (
-                <div style={modalStyle}>
-                    <button onClick={handleExportCSV} style={{ ...buttonStyle, width: '100%', marginBottom: '10px' }}>📤 Экспорт в CSV/JSON</button>
-                    <textarea placeholder="Вставьте JSON для импорта..." value={importJson} onChange={(e) => setImportJson(e.target.value)} rows={3} style={inputStyle} />
-                    <button onClick={() => onImportData(importJson)} style={buttonPrimaryStyle}>📥 Импорт</button>
-                    <button onClick={() => setShowImportExport(false)} style={buttonPrimaryStyle}> Закрыть</button>
+                <div style={overlayStyle} onClick={handleCloseImportExport}>
+                    <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+                        <h3 style={modalTitleStyle}>Импорт / Экспорт</h3>
+                        
+                        <button onClick={onExportCSV} style={modalActionButtonStyle}>
+                            📤 Экспорт в CSV
+                        </button>
+                        <button onClick={onExportData} style={modalActionButtonStyle}>
+                            📤 Экспорт в JSON
+                        </button>
+                        <button onClick={onImportCSV} style={modalActionButtonStyle}>
+                            📥 Импорт из CSV
+                        </button>
+                        
+                        <div style={dividerStyle} />
+                        
+                        <textarea
+                            placeholder="Вставьте JSON для импорта..."
+                            value={importJson}
+                            onChange={(e) => setImportJson(e.target.value)}
+                            rows={5}
+                            style={modalTextareaStyle}
+                        />
+                        
+                        <div style={modalButtonGroupStyle}>
+                            <button onClick={handleImportDataLocal} style={primaryButtonStyle}>
+                                📥 Импорт JSON
+                            </button>
+                            <button onClick={handleCloseImportExport} style={secondaryButtonStyle}>
+                                Закрыть
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
     );
 };
+
+// СТИЛИ
+const toolbarStyle: React.CSSProperties = {
+    padding: '10px',
+    backgroundColor: '#f5f5f5',
+    borderBottom: '1px solid #ddd',
+    display: 'flex',
+    gap: '10px',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    position: 'relative'
+};
+
 const buttonStyle: React.CSSProperties = {
     padding: '6px 12px',
     backgroundColor: '#ffffff',
     border: '1px solid #ccc',
     borderRadius: '4px',
     cursor: 'pointer',
-    fontSize: '14px'
+    fontSize: '14px',
+    transition: 'all 0.2s'
 };
 
-const buttonPrimaryStyle: React.CSSProperties = {
-    ...buttonStyle,
-    backgroundColor: '#4CAF50',
-    color: 'white'
+// СТИЛИ ДЛЯ МОДАЛЬНЫХ ОКОН (КАК В CreateDocumentModal)
+const overlayStyle: React.CSSProperties = {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2000
 };
 
 const modalStyle: React.CSSProperties = {
-    position: 'absolute',
     backgroundColor: 'white',
-    border: '1px solid #ccc',
-    borderRadius: '8px',
-    padding: '15px',
-    boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-    zIndex: 1000,
-    marginTop: '5px',
-    minWidth: '300px'
+    borderRadius: '12px',
+    padding: '24px',
+    minWidth: '400px',
+    maxWidth: '500px',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
 };
 
-const inputStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '6px',
-    marginBottom: '10px',
-    border: '1px solid #ccc',
-    borderRadius: '4px'
+const modalTitleStyle: React.CSSProperties = {
+    margin: '0 0 20px 0',
+    fontSize: '20px',
+    fontWeight: '500',
+    color: '#333'
 };
-//ЭТО ЗАГЛУШКА
+
+const modalInputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '10px',
+    marginBottom: '15px',
+    border: '1px solid #ddd',
+    borderRadius: '6px',
+    fontSize: '14px',
+    boxSizing: 'border-box'
+};
+
+const modalTextareaStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '10px',
+    marginBottom: '15px',
+    border: '1px solid #ddd',
+    borderRadius: '6px',
+    fontSize: '14px',
+    fontFamily: 'monospace',
+    boxSizing: 'border-box',
+    resize: 'vertical'
+};
+
+const modalActionButtonStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '10px',
+    marginBottom: '10px',
+    backgroundColor: '#f5f5f5',
+    border: '1px solid #ddd',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    textAlign: 'left',
+    transition: 'background-color 0.2s'
+};
+
+const dividerStyle: React.CSSProperties = {
+    height: '1px',
+    backgroundColor: '#eee',
+    margin: '15px 0'
+};
+
+const checkboxGroupStyle: React.CSSProperties = {
+    marginBottom: '20px'
+};
+
+const checkboxStyle: React.CSSProperties = {
+    display: 'inline-block',
+    marginRight: '20px',
+    fontSize: '14px',
+    cursor: 'pointer'
+};
+
+const modalButtonGroupStyle: React.CSSProperties = {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '10px',
+    marginTop: '10px'
+};
+
+const primaryButtonStyle: React.CSSProperties = {
+    padding: '8px 16px',
+    backgroundColor: '#4CAF50',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '14px'
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+    padding: '8px 16px',
+    backgroundColor: '#f5f5f5',
+    color: '#333',
+    border: '1px solid #ddd',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '14px'
+};
