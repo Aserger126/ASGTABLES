@@ -1,8 +1,8 @@
 // тут чисто иммитация API для работы с документами, используем localStorage для хранения данных В реальном приложении это бы был бэк  сервер с базой данных.
 import type { Document, DocumentData, Cell } from '../types';
 
-const STORAGE_KEY = 'spreadsheet_documents';
-const CURRENT_DOC_KEY = 'spreadsheet_current_doc';
+const STORAGE_KEY = 'spreadsheet_documents'; // КЛЮЧ ДЛЯ ХРАНЕНИЯ ВСЕХ ДОКУМЕНТОВ В localStorage
+const CURRENT_DOC_KEY = 'spreadsheet_current_doc'; // ТЕКУЩИЙ ДОК
 
 // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ РАБОТЫ С LOCALSTORAGE
 const getStoredDocuments = (): Map<string, DocumentData> => {

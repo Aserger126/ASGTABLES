@@ -10,12 +10,15 @@ interface UiState {
     activeCell: { row: number; col: number } | null;
     saveStatus: SaveStatus;
     notification: { message: string; type: 'success' | 'error' | 'info' } | null;
+    isNavigationBlocked: boolean;
 }
+
 
 const initialState: UiState = {
     showDashboard: true,
     showCreateModal: false,
     showCSVImportModal: false,
+    isNavigationBlocked: false,
     activeCell: null,
     saveStatus: {
         state: 'saved',
@@ -48,7 +51,10 @@ const uiSlice = createSlice({
         },
         hideNotification: (state) => {
             state.notification = null;
-        }
+        },
+        setNavigationBlocked: (state, action: PayloadAction<boolean>) => {
+            state.isNavigationBlocked = action.payload;
+},
     }
 });
 
