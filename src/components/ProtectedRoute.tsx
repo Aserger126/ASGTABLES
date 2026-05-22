@@ -1,20 +1,41 @@
-// components/ProtectedRoute.tsx
-import type { ReactNode } from 'react';
-import { Navigate } from 'react-router-dom';
+import type { ReactNode } from 'react';  //
+import { useEffect } from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
+import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { checkAuth } from '../store/slices/authSlice';
 
 interface ProtectedRouteProps {
     children: ReactNode;
 }
 
-// ВРЕМЕННО ВСЕГДА ПРОПУСКАЕМ (ДЛЯ 5 НЕДЕЛИ)
-// ПОТОМ ЗДЕСЬ БУДЕТ ПРОВЕРКА АВТОРИЗАЦИИ
 export const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-    // ВРЕМЕННЫЙ MOCK - ВСЕГДА АВТОРИЗОВАН
-    const isAuthenticated = true;
+    const location = useLocation();
+    const dispatch = useAppDispatch();
+    const { isAuthenticated, isLoading } = useAppSelector(state => state.auth);
+    
+    useEffect(() => {
+        if (!isAuthenticated && !isLoading) {
+            dispatch(checkAuth());
+        }
+    }, [dispatch, isAuthenticated, isLoading]);
+    
+    if (isLoading) {
+        return <div style={loadingStyle}>Загрузка...</div>;
+    }
     
     if (!isAuthenticated) {
-        return <Navigate to="/login" replace />;
+        // СОХРАНЯЕМ МАРШРУТ, КУДА ХОТЕЛ ПОПАСТЬ ПОЛЬЗОВАТЕЛЬ
+        return <Navigate to="/login" state={{ from: location }} replace />;
     }
     
     return <>{children}</>;
+};
+
+const loadingStyle: React.CSSProperties = {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '100vh',
+    fontSize: '16px',
+    color: '#666'
 };

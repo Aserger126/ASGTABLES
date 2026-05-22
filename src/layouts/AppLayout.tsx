@@ -1,39 +1,42 @@
-// layouts/AppLayout.tsx
+// layouts/AppLayout.tsx - добавить импорт и кнопку
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { clearCurrentDocument } from '../store/slices/documentsSlice';
 import { setShowDashboard } from '../store/slices/uiSlice';
+import { logout } from '../store/slices/authSlice';
 import { SaveIndicator } from '../components/SaveIndicator';
 
 export const AppLayout = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const dispatch = useAppDispatch();
-    const { saveStatus, activeCell } = useAppSelector(state => state.ui);
+    const { saveStatus } = useAppSelector(state => state.ui);
     const { currentDocument } = useAppSelector(state => state.documents);
+    const { user } = useAppSelector(state => state.auth);
 
-    // ХЛЕБНЫЕ КРОШКИ
+    const handleLogout = async () => {
+        await dispatch(logout());
+        navigate('/login');
+    };
+
+    // ХЛЕБНЫЕ КРОШКИ (оставляем как есть)
     const getBreadcrumbs = () => {
         const pathnames = location.pathname.split('/').filter(x => x);
-        
         if (pathnames[0] === 'dashboard') {
             return [{ name: 'Мои документы', path: '/dashboard' }];
         }
-        
         if (pathnames[0] === 'documents' && pathnames[1]) {
             return [
                 { name: 'Мои документы', path: '/dashboard' },
                 { name: currentDocument?.name || 'Документ', path: location.pathname }
             ];
         }
-        
         if (pathnames[0] === 'profile') {
             return [
                 { name: 'Мои документы', path: '/dashboard' },
                 { name: 'Профиль', path: '/profile' }
             ];
         }
-        
         return [];
     };
 
@@ -41,24 +44,22 @@ export const AppLayout = () => {
 
     return (
         <div style={layoutStyle}>
-            {/* ШАПКА */}
             <header style={headerStyle}>
                 <div style={logoStyle}>
-                    <Link to="/dashboard" style={logoLinkStyle}>
-                        📊 ASG Table
-                    </Link>
+                    <Link to="/dashboard" style={logoLinkStyle}>📊 ASG Table</Link>
                 </div>
                 <div style={headerRightStyle}>
                     <SaveIndicator status={saveStatus} />
                     <div style={userInfoStyle}>
-                        👤 Тестовый пользователь
+                        👤 {user?.name || 'Пользователь'}
                     </div>
+                    <button onClick={handleLogout} style={logoutButtonStyle}>
+                        🚪 Выйти
+                    </button>
                 </div>
             </header>
 
-            {/* ОСНОВНОЙ КОНТЕНТ */}
             <div style={contentStyle}>
-                {/* ХЛЕБНЫЕ КРОШКИ */}
                 {breadcrumbs.length > 0 && (
                     <div style={breadcrumbsStyle}>
                         {breadcrumbs.map((crumb, index) => (
@@ -67,23 +68,30 @@ export const AppLayout = () => {
                                 {index === breadcrumbs.length - 1 ? (
                                     <span style={currentStyle}>{crumb.name}</span>
                                 ) : (
-                                    <Link to={crumb.path} style={crumbLinkStyle}>
-                                        {crumb.name}
-                                    </Link>
+                                    <Link to={crumb.path} style={crumbLinkStyle}>{crumb.name}</Link>
                                 )}
                             </span>
                         ))}
                     </div>
                 )}
-
-                {/* ВЫВОД КОНТЕНТА СТРАНИЦЫ */}
                 <Outlet />
             </div>
         </div>
     );
 };
 
-// СТИЛИ
+// ДОБАВИТЬ НОВЫЙ СТИЛЬ
+const logoutButtonStyle: React.CSSProperties = {
+    padding: '6px 12px',
+    backgroundColor: '#ff4444',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '14px'
+};
+
+// ОСТАЛЬНЫЕ СТИЛИ ТЕ ЖЕ...
 const layoutStyle: React.CSSProperties = {
     display: 'flex',
     flexDirection: 'column',
