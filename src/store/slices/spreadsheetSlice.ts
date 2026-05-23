@@ -1,8 +1,9 @@
 // store/slices/spreadsheetSlice.ts
-import { createSlice, createSelector } from '@reduxjs/toolkit';
+import { createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
-import type { Cell, CellValue, Selection, ColumnWidth, RowHeight } from '../../types';
+import type { Cell, CellValue, CellStyle, Selection, ColumnWidth, RowHeight } from '../../types';
 import { formatValue, evaluateFormula } from '../../formulas';
+import { defaultStyle } from '../../components/CellStyles';
 
 // СОСТОЯНИЕ СЛАЙСА
 interface SpreadsheetState {
@@ -15,6 +16,7 @@ interface SpreadsheetState {
     editValue: string;
     columnWidths: ColumnWidth;
     rowHeights: RowHeight;
+    cellStyles: CellStyle[][];
     history: {
         past: Cell[][][];
         future: Cell[][][];
@@ -32,6 +34,7 @@ const initialState: SpreadsheetState = {
     editValue: '',
     columnWidths: {},
     rowHeights: {},
+    cellStyles: [],
     history: {
         past: [],
         future: []
@@ -79,6 +82,9 @@ export const spreadsheetSlice = createSlice({
             state.data = action.payload.data;
             state.rows = action.payload.rows;
             state.cols = action.payload.cols;
+            state.cellStyles = Array(state.rows).fill(null).map(() => 
+                Array(state.cols).fill(null).map(() => ({ ...defaultStyle }))
+            );
             state.history.past = [];
             state.history.future = [];
         },
@@ -123,7 +129,8 @@ export const spreadsheetSlice = createSlice({
                 value,
                 displayValue,
                 type,
-                formula
+                formula,
+                style: state.cellStyles[row]?.[col] || { ...defaultStyle }
             };
             
             // ПЕРЕСЧИТЫВАЕМ ФОРМУЛЫ
@@ -148,7 +155,9 @@ export const spreadsheetSlice = createSlice({
                 displayValue: '',
                 type: 'string'
             }));
+            const newStyleRow: CellStyle[] = Array(state.cols).fill(null).map(() => ({ ...defaultStyle }));
             state.data.splice(action.payload.afterRow + 1, 0, newRow);
+            state.cellStyles.splice(action.payload.afterRow + 1, 0, newStyleRow);
             state.rows++;
             state.data = reevaluateAllFormulas(state.data);
         },
@@ -157,6 +166,7 @@ export const spreadsheetSlice = createSlice({
             if (state.data.length <= 1) return;
             state.history.past.push(JSON.parse(JSON.stringify(state.data)));
             state.data.splice(action.payload.row, 1);
+            state.cellStyles.splice(action.payload.row, 1);
             state.rows--;
             state.data = reevaluateAllFormulas(state.data);
         },
@@ -174,6 +184,11 @@ export const spreadsheetSlice = createSlice({
                 });
                 return newRow;
             });
+            state.cellStyles = state.cellStyles.map(row => {
+                const newRow = [...row];
+                newRow.splice(targetCol, 0, { ...defaultStyle });
+                return newRow;
+            });
             state.cols++;
             state.data = reevaluateAllFormulas(state.data);
         },
@@ -182,6 +197,11 @@ export const spreadsheetSlice = createSlice({
             if (state.cols <= 1) return;
             state.history.past.push(JSON.parse(JSON.stringify(state.data)));
             state.data = state.data.map(row => {
+                const newRow = [...row];
+                newRow.splice(action.payload.col, 1);
+                return newRow;
+            });
+            state.cellStyles = state.cellStyles.map(row => {
                 const newRow = [...row];
                 newRow.splice(action.payload.col, 1);
                 return newRow;
@@ -199,6 +219,9 @@ export const spreadsheetSlice = createSlice({
                     displayValue: '',
                     type: 'string'
                 }))
+            );
+            state.cellStyles = state.cellStyles.map(row =>
+                row.map(() => ({ ...defaultStyle }))
             );
             state.data = reevaluateAllFormulas(state.data);
         },
@@ -273,6 +296,154 @@ export const spreadsheetSlice = createSlice({
         
         setRowHeight: (state, action: PayloadAction<{ row: number; height: number }>) => {
             state.rowHeights[action.payload.row] = action.payload.height;
+        },
+
+        // ========== НОВЫЕ РЕДЬЮСЕРЫ ДЛЯ ФОРМАТИРОВАНИЯ ==========
+        
+        // ПРИМЕНИТЬ СТИЛЬ К ВЫДЕЛЕНИЮ
+        applyStyleToSelection: (state, action: PayloadAction<{
+            selection: Selection;
+            style: Partial<CellStyle>;
+        }>) => {
+            const { selection, style } = action.payload;
+            const minRow = Math.min(selection.startRow, selection.endRow);
+            const maxRow = Math.max(selection.startRow, selection.endRow);
+            const minCol = Math.min(selection.startCol, selection.endCol);
+            const maxCol = Math.max(selection.startCol, selection.endCol);
+            
+            // ИНИЦИАЛИЗИРУЕМ cellStyles ЕСЛИ НУЖНО
+            if (!state.cellStyles || state.cellStyles.length === 0) {
+                state.cellStyles = Array(state.rows).fill(null).map(() => 
+                    Array(state.cols).fill(null).map(() => ({ ...defaultStyle }))
+                );
+            }
+            
+            for (let row = minRow; row <= maxRow; row++) {
+                for (let col = minCol; col <= maxCol; col++) {
+                    if (!state.cellStyles[row]) state.cellStyles[row] = [];
+                    if (!state.cellStyles[row][col]) state.cellStyles[row][col] = { ...defaultStyle };
+                    state.cellStyles[row][col] = { ...state.cellStyles[row][col], ...style };
+                    
+                    // ТАКЖЕ ОБНОВЛЯЕМ СТИЛЬ В САМОЙ ЯЧЕЙКЕ ДЛЯ ОТОБРАЖЕНИЯ
+                    if (state.data[row] && state.data[row][col]) {
+                        state.data[row][col].style = { ...state.cellStyles[row][col] };
+                    }
+                }
+            }
+        },
+
+        // КОПИРОВАТЬ ДИАПАЗОН
+        copyRange: (state, action: PayloadAction<Selection>) => {
+            const { startRow, startCol, endRow, endCol } = action.payload;
+            const minRow = Math.min(startRow, endRow);
+            const maxRow = Math.max(startRow, endRow);
+            const minCol = Math.min(startCol, endCol);
+            const maxCol = Math.max(startCol, endCol);
+            
+            const copyData: Cell[][] = [];
+            const copyStyles: CellStyle[][] = [];
+            
+            for (let row = minRow; row <= maxRow; row++) {
+                const dataRow: Cell[] = [];
+                const styleRow: CellStyle[] = [];
+                for (let col = minCol; col <= maxCol; col++) {
+                    dataRow.push({ ...state.data[row][col] });
+                    styleRow.push({ ...(state.cellStyles[row]?.[col] || defaultStyle) });
+                }
+                copyData.push(dataRow);
+                copyStyles.push(styleRow);
+            }
+            
+            localStorage.setItem('clipboard_data', JSON.stringify(copyData));
+            localStorage.setItem('clipboard_styles', JSON.stringify(copyStyles));
+        },
+
+        // ВСТАВИТЬ ДИАПАЗОН
+        pasteRange: (state, action: PayloadAction<{ startRow: number; startCol: number }>) => {
+            const { startRow, startCol } = action.payload;
+            const copiedData = localStorage.getItem('clipboard_data');
+            const copiedStyles = localStorage.getItem('clipboard_styles');
+            
+            if (!copiedData || !copiedStyles) return;
+            
+            const data: Cell[][] = JSON.parse(copiedData);
+            const styles: CellStyle[][] = JSON.parse(copiedStyles);
+            
+            state.history.past.push(JSON.parse(JSON.stringify(state.data)));
+            
+            for (let row = 0; row < data.length; row++) {
+                const targetRow = startRow + row;
+                if (targetRow >= state.rows) break;
+                for (let col = 0; col < data[row].length; col++) {
+                    const targetCol = startCol + col;
+                    if (targetCol >= state.cols) break;
+                    state.data[targetRow][targetCol] = { ...data[row][col] };
+                    if (!state.cellStyles[targetRow]) state.cellStyles[targetRow] = [];
+                    state.cellStyles[targetRow][targetCol] = { ...styles[row][col] };
+                    
+                    // ОБНОВЛЯЕМ СТИЛЬ В ЯЧЕЙКЕ
+                    if (state.data[targetRow][targetCol]) {
+                        state.data[targetRow][targetCol].style = { ...styles[row][col] };
+                    }
+                }
+            }
+            
+            state.data = reevaluateAllFormulas(state.data);
+        },
+
+        // ОЧИСТИТЬ ВЫДЕЛЕННЫЕ ЯЧЕЙКИ
+        clearCells: (state, action: PayloadAction<Selection>) => {
+            const { startRow, startCol, endRow, endCol } = action.payload;
+            const minRow = Math.min(startRow, endRow);
+            const maxRow = Math.max(startRow, endRow);
+            const minCol = Math.min(startCol, endCol);
+            const maxCol = Math.max(startCol, endCol);
+            
+            state.history.past.push(JSON.parse(JSON.stringify(state.data)));
+            
+            for (let row = minRow; row <= maxRow; row++) {
+                for (let col = minCol; col <= maxCol; col++) {
+                    state.data[row][col] = {
+                        value: '',
+                        displayValue: '',
+                        type: 'string',
+                        style: state.cellStyles[row]?.[col] || { ...defaultStyle }
+                    };
+                }
+            }
+            
+            state.data = reevaluateAllFormulas(state.data);
+        },
+
+        // ВЫДЕЛИТЬ ВСЁ
+        selectAll: (state) => {
+            state.selection = {
+                startRow: 0,
+                startCol: 0,
+                endRow: state.rows - 1,
+                endCol: state.cols - 1
+            };
+        },
+
+        // ОБНОВИТЬ СТИЛЬ ОДНОЙ ЯЧЕЙКИ
+        updateCellStyle: (state, action: PayloadAction<{
+            row: number;
+            col: number;
+            style: Partial<CellStyle>;
+        }>) => {
+            const { row, col, style } = action.payload;
+            if (!state.cellStyles[row]) {
+                state.cellStyles[row] = [];
+            }
+            if (!state.cellStyles[row][col]) {
+                state.cellStyles[row][col] = { ...defaultStyle };
+            }
+            state.cellStyles[row][col] = { ...state.cellStyles[row][col], ...style };
+            
+            // ОБНОВЛЯЕМ СТИЛЬ В ЯЧЕЙКЕ
+            if (state.data[row] && state.data[row][col]) {
+                state.data[row][col].style = { ...state.cellStyles[row][col] };
+            }
         }
     }
 });
@@ -295,7 +466,13 @@ export const {
     clearAll,
     undo,
     redo,
-    findAndReplace
+    findAndReplace,
+    applyStyleToSelection,
+    copyRange,
+    pasteRange,
+    clearCells,
+    selectAll,
+    updateCellStyle
 } = spreadsheetSlice.actions;
 
 export default spreadsheetSlice.reducer;

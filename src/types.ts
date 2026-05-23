@@ -7,6 +7,7 @@ export interface Cell {
     displayValue: string;
     formula?: string; // исходная формула (если есть - ?)
     type: CellType;
+    style?: CellStyle;
 }
 
 export interface Selection {
@@ -105,5 +106,25 @@ export interface AuthState {
     isLoading: boolean;
     error: string | null;
 }
+
+export interface CellStyle {
+    bold?: boolean;
+    italic?: boolean;
+    underline?: boolean;
+    backgroundColor?: string;
+    textColor?: string;
+    horizontalAlign?: 'left' | 'center' | 'right';
+    numberFormat?: 'number' | 'percent' | 'currency' | 'date';
+    fontSize?: number;
+    fontFamily?: string;
+}
+
+export interface ClipboardData {
+    data: Cell[][];
+    styles: CellStyle[][];
+    rows: number;
+    cols: number;
+}
+
 
 // ИЛЮХ ТУТ У НАС НЕТ ИМПОРТОВ, ТУТ НАШИ ТИПЫ ДАННЫХ, МЫ ОТ СЮДА ТОЛЬКО ЭКСПОРТИРУЕМ

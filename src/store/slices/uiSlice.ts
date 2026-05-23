@@ -11,6 +11,9 @@ interface UiState {
     saveStatus: SaveStatus;
     notification: { message: string; type: 'success' | 'error' | 'info' } | null;
     isNavigationBlocked: boolean;
+    globalTheme: 'light' | 'dark';
+    globalFont: string;
+    globalFontSize: number;
 }
 
 
@@ -24,7 +27,10 @@ const initialState: UiState = {
         state: 'saved',
         lastSaved: null
     },
-    notification: null
+    notification: null,
+    globalTheme: 'light',
+    globalFont: 'Arial, sans-serif',
+    globalFontSize: 14
 };
 
 const uiSlice = createSlice({
@@ -54,7 +60,16 @@ const uiSlice = createSlice({
         },
         setNavigationBlocked: (state, action: PayloadAction<boolean>) => {
             state.isNavigationBlocked = action.payload;
-},
+        },
+        setGlobalTheme: (state, action: PayloadAction<'light' | 'dark'>) => {
+            state.globalTheme = action.payload;
+        },
+        setGlobalFont: (state, action: PayloadAction<string>) => {
+            state.globalFont = action.payload;
+        },
+        setGlobalFontSize: (state, action: PayloadAction<number>) => {
+            state.globalFontSize = action.payload;
+        }
     }
 });
 
@@ -66,7 +81,10 @@ export const {
     setSaveStatus,
     showNotification,
     hideNotification,
-    setNavigationBlocked
+    setNavigationBlocked,
+    setGlobalTheme,
+    setGlobalFont,
+    setGlobalFontSize
 } = uiSlice.actions;
 
 export default uiSlice.reducer;

@@ -1,1 +1,41 @@
-/* тут будут стили для будущего компонента
+
+:root {
+    --bg-color: #f5f5f5;
+    --header-bg: #f0f0f0;
+    --cell-bg: #ffffff;
+    --cell-text: #000000;
+    --border-color: #ccc;
+    --selected-bg: #e3f2fd;
+    --global-font: Arial, sans-serif;
+    --global-font-size: 14px;
+}
+
+body {
+    margin: 0;
+    font-family: var(--global-font);
+    font-size: var(--global-font-size);
+    background-color: var(--bg-color);
+    color: var(--cell-text);
+}
+
+/* Применяем переменные к таблице */
+table {
+    font-family: var(--global-font);
+    font-size: var(--global-font-size);
+}
+
+th {
+    background-color: var(--header-bg) !important;
+    border-color: var(--border-color) !important;
+}
+
+td {
+    background-color: var(--cell-bg) !important;
+    color: var(--cell-text) !important;
+    border-color: var(--border-color) !important;
+}
+
+/* Выделенная ячейка */
+td.selected {
+    background-color: var(--selected-bg) !important;
+}
