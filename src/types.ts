@@ -75,4 +75,35 @@ export interface SaveStatus {
     errorMessage?: string;
 }
 
+// ТИПЫ ДЛЯ АВТОРИЗАЦИИ
+export interface User {
+    id: string;
+    name: string;
+    email: string;
+}
+
+export interface LoginCredentials {
+    email: string;
+    password: string;
+}
+
+export interface RegisterCredentials {
+    name: string;
+    email: string;
+    password: string;
+    confirmPassword: string;
+}
+
+export interface AuthResponse {
+    user: User;
+    accessToken: string;
+}
+
+export interface AuthState {
+    user: User | null;
+    isAuthenticated: boolean;
+    isLoading: boolean;
+    error: string | null;
+}
+
 // ИЛЮХ ТУТ У НАС НЕТ ИМПОРТОВ, ТУТ НАШИ ТИПЫ ДАННЫХ, МЫ ОТ СЮДА ТОЛЬКО ЭКСПОРТИРУЕМ
