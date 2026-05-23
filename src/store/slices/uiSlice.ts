@@ -65,7 +65,8 @@ export const {
     setActiveCell,
     setSaveStatus,
     showNotification,
-    hideNotification
+    hideNotification,
+    setNavigationBlocked
 } = uiSlice.actions;
 
 export default uiSlice.reducer;
