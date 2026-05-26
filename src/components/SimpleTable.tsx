@@ -1,9 +1,10 @@
 // SimpleTable.tsx
 import React, { useState, useRef, useEffect, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import type { Cell, Selection, ColumnWidth, RowHeight, CellValue } from '../types';
-import { evaluateFormula, formatValue, isNumber } from '../formulas';
+import { evaluateFormula, formatValue } from '../formulas';
+import { getCellStyle, formatNumber } from './CellStyles';
 
-interface TableProps { // пропс смешное слово
+interface TableProps {
   data: Cell[][];
   rows: number;
   cols: number;
@@ -14,7 +15,7 @@ interface TableProps { // пропс смешное слово
   onDeleteColumn: (col: number) => void;
 }
 
-interface ResizeState { // черня для изменения размера таблицы 
+interface ResizeState {
   type: 'col' | 'row';
   index: number;
   startX: number;
@@ -23,7 +24,7 @@ interface ResizeState { // черня для изменения размера �
   startHeight: number;
 }
 
-export const Table: React.FC<TableProps> = ({  //явно типизируем пропсики (смешное слово)
+export const Table: React.FC<TableProps> = ({
   data, rows, cols, onCellChange,
   onAddRow, onDeleteRow, onAddColumn, onDeleteColumn
 }) => {
@@ -35,18 +36,16 @@ export const Table: React.FC<TableProps> = ({  //явно типизируем �
   const [rowHeights, setRowHeights] = useState<RowHeight>({});
   const [resizing, setResizing] = useState<ResizeState | null>(null);
   const [contextMenu, setContextMenu] = useState<{ row: number; col: number; x: number; y: number } | null>(null);
-  
+
   const tableRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Фокус-покус на редактор при двойном клике
   useEffect(() => {
     if (editingCell && inputRef.current) {
       inputRef.current.focus();
     }
   }, [editingCell]);
 
-  // Получение значения ячейки для формул
   const getCellValueForFormula = (row: number, col: number): any => {
     if (row >= 0 && row < rows && col >= 0 && col < cols && data[row]?.[col]) {
       const cell = data[row][col];
@@ -58,7 +57,6 @@ export const Table: React.FC<TableProps> = ({  //явно типизируем �
     return null;
   };
 
-  // Обновление всех формул при изменении данных
   const reevaluateFormulas = () => {
     for (let i = 0; i < rows; i++) {
       for (let j = 0; j < cols; j++) {
@@ -73,23 +71,17 @@ export const Table: React.FC<TableProps> = ({  //явно типизируем �
     }
   };
 
-  // Выделение диапазона
   const handleCellClick = (row: number, col: number, e: ReactMouseEvent) => {
     e.stopPropagation();
-    
-    // Обработка с зажатым Shift
+
     if (e.shiftKey && lastSelectedCell) {
-      // Расширяем выделение от lastSelectedCell до текущей ячейки
       setSelection({
         startRow: lastSelectedCell.row,
         startCol: lastSelectedCell.col,
         endRow: row,
         endCol: col
       });
-    } 
-    // Обработка с зажатым Ctrl (для множественного выбора, опционально)
-    else if (e.ctrlKey) {
-      // Можно добавить множественный выбор позже
+    } else if (e.ctrlKey) {
       setSelection({
         startRow: row,
         startCol: col,
@@ -97,9 +89,7 @@ export const Table: React.FC<TableProps> = ({  //явно типизируем �
         endCol: col
       });
       setLastSelectedCell({ row, col });
-    }
-    // Обычный клик без модификаторов
-    else {
+    } else {
       setSelection({
         startRow: row,
         startCol: col,
@@ -110,7 +100,6 @@ export const Table: React.FC<TableProps> = ({  //явно типизируем �
     }
   };
 
-  // Двойной клик для редактирования
   const handleDoubleClick = (row: number, col: number) => {
     const cell = data[row][col];
     let valueToEdit = '';
@@ -123,35 +112,27 @@ export const Table: React.FC<TableProps> = ({  //явно типизируем �
     setEditingCell({ row, col });
   };
 
-  // Обработка редактирования
   const handleEditAccept = () => {
     if (!editingCell) return;
-    
+
     const { row, col } = editingCell;
     let newValue: CellValue = editValue;
-    let cellType: 'string' | 'number' | 'boolean' | 'formula' = 'string';
     let formula: string | undefined = undefined;
-    
+
     if (editValue.startsWith('=')) {
-      // Это типа формула
-      cellType = 'formula';
       formula = editValue;
       const computedValue = evaluateFormula(editValue, getCellValueForFormula);
       newValue = computedValue;
     } else if (editValue.toLowerCase() === 'true') {
-      cellType = 'boolean';
       newValue = true;
     } else if (editValue.toLowerCase() === 'false') {
-      cellType = 'boolean';
       newValue = false;
     } else if (!isNaN(Number(editValue)) && editValue.trim() !== '') {
-      cellType = 'number';
       newValue = Number(editValue);
     } else {
-      cellType = 'string';
       newValue = editValue;
     }
-    
+
     onCellChange(row, col, newValue, formula);
     setEditingCell(null);
     reevaluateFormulas();
@@ -165,7 +146,6 @@ export const Table: React.FC<TableProps> = ({  //явно типизируем �
         setEditingCell(null);
       }
     } else if (selection) {
-      // Навигация клавишами
       const { endRow, endCol } = selection;
       if (e.key === 'ArrowUp' && endRow > 0) {
         setSelection({ ...selection, startRow: endRow - 1, endRow: endRow - 1 });
@@ -179,7 +159,6 @@ export const Table: React.FC<TableProps> = ({  //явно типизируем �
     }
   };
 
-  // Изменение ширины колонки
   const startResizeCol = (colIndex: number, e: ReactMouseEvent) => {
     e.preventDefault();
     setResizing({
@@ -192,7 +171,6 @@ export const Table: React.FC<TableProps> = ({  //явно типизируем �
     });
   };
 
-  // Изменение высоты строки
   const startResizeRow = (rowIndex: number, e: ReactMouseEvent) => {
     e.preventDefault();
     setResizing({
@@ -205,11 +183,10 @@ export const Table: React.FC<TableProps> = ({  //явно типизируем �
     });
   };
 
-  // Обработка ресайза
   useEffect(() => {
     const handleMouseMove = (e: globalThis.MouseEvent) => {
       if (!resizing) return;
-      
+
       if (resizing.type === 'col') {
         const newWidth = resizing.startWidth + (e.clientX - resizing.startX);
         if (newWidth > 40) {
@@ -222,23 +199,22 @@ export const Table: React.FC<TableProps> = ({  //явно типизируем �
         }
       }
     };
-    
+
     const handleMouseUp = () => {
       setResizing(null);
     };
-    
+
     if (resizing) {
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
     }
-    
+
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
   }, [resizing, columnWidths, rowHeights]);
 
-  // Контекстное меню
   const handleContextMenu = (row: number, col: number, e: ReactMouseEvent) => {
     e.preventDefault();
     setContextMenu({ row, col, x: e.clientX, y: e.clientY });
@@ -273,6 +249,7 @@ export const Table: React.FC<TableProps> = ({  //явно типизируем �
       closeContextMenu();
     }
   };
+
   const closeContext = () => {
     if (contextMenu) {
       closeContextMenu();
@@ -300,7 +277,7 @@ export const Table: React.FC<TableProps> = ({  //явно типизируем �
   };
 
   return (
-    <div 
+    <div
       ref={tableRef}
       onKeyDown={handleKeyDown}
       tabIndex={0}
@@ -310,20 +287,20 @@ export const Table: React.FC<TableProps> = ({  //явно типизируем �
       <table style={{ borderCollapse: 'collapse', width: 'max-content' }}>
         <thead>
           <tr>
-            <th style={{ 
-              border: '1px solid #ccc', 
-              padding: '8px', 
-              background: '#f0f0f0',
+            <th style={{
+              border: '1px solid var(--border-color, #ccc)',
+              padding: '8px',
+              background: 'var(--header-bg, #f0f0f0)',
               width: '40px'
-            }}></th>
+            }} />
             {Array.from({ length: cols }).map((_, colIndex) => (
-              <th 
-                key={colIndex} 
-                style={{ 
-                  border: '1px solid #ccc', 
-                  padding: '8px', 
+              <th
+                key={colIndex}
+                style={{
+                  border: '1px solid var(--border-color, #ccc)',
+                  padding: '8px',
                   minWidth: `${columnWidths[colIndex] || 100}px`,
-                  background: '#f0f0f0',
+                  background: 'var(--header-bg, #f0f0f0)',
                   position: 'relative'
                 }}
               >
@@ -344,14 +321,14 @@ export const Table: React.FC<TableProps> = ({  //явно типизируем �
             ))}
           </tr>
         </thead>
-        
+
         <tbody>
           {Array.from({ length: rows }).map((_, rowIndex) => (
             <tr key={rowIndex}>
-              <td style={{ 
-                border: '1px solid #ccc', 
-                padding: '8px', 
-                background: '#f0f0f0', 
+              <td style={{
+                border: '1px solid var(--border-color, #ccc)',
+                padding: '8px',
+                background: 'var(--header-bg, #f0f0f0)',
                 textAlign: 'center',
                 position: 'relative',
                 height: `${rowHeights[rowIndex] || 30}px`
@@ -370,20 +347,37 @@ export const Table: React.FC<TableProps> = ({  //явно типизируем �
                   onMouseDown={(e) => startResizeRow(rowIndex, e)}
                 />
               </td>
-              
               {Array.from({ length: cols }).map((_, colIndex) => {
                 const cell = data[rowIndex]?.[colIndex];
-                const displayValue = cell?.displayValue || formatValue(cell?.value);
+                let cellStyle = getCellStyle(cell?.style);
                 const isEditing = editingCell?.row === rowIndex && editingCell?.col === colIndex;
                 const isSelected = isCellInSelection(rowIndex, colIndex);
                 
+                if (isSelected) {
+                  cellStyle = { 
+                    ...cellStyle, 
+                    backgroundColor: 'rgba(33, 150, 243, 0.2)',
+                    outline: '2px solid #2196f3',
+                  };
+                }
+
+                const displayValue = (() => {
+                  if (cell?.type === 'formula' && cell.formula) {
+                    return cell.displayValue;
+                  }
+                  if (cell?.style?.numberFormat !== 'number' && typeof cell?.value === 'number') {
+                    return formatNumber(cell.value, cell?.style?.numberFormat || 'number');
+                  }
+                  return cell?.displayValue || formatValue(cell?.value);
+                })();
+                
                 return (
                   <td
-                    key={colIndex} 
-                    style={{ 
-                      border: '1px solid #ccc', 
+                    key={colIndex}
+                    style={{
+                      ...cellStyle,
+                      border: '1px solid var(--border-color, #ccc)',
                       padding: '4px',
-                      backgroundColor: isSelected ? '#95aec0' : 'white',
                       height: `${rowHeights[rowIndex] || 30}px`
                     }}
                     onClick={(e) => handleCellClick(rowIndex, colIndex, e)}
@@ -401,21 +395,32 @@ export const Table: React.FC<TableProps> = ({  //явно типизируем �
                           if (e.key === 'Enter') handleEditAccept();
                           if (e.key === 'Escape') setEditingCell(null);
                         }}
-                        style={{ 
-                          width: '90%', 
-                          border: 'none', 
-                          outline: '1px solid #000000',
+                        style={{
+                          width: '100%',
+                          border: 'none',
+                          outline: '1px solid #2196f3',
                           padding: '4px',
-                          fontSize: '14px'
+                          fontSize: `${cell?.style?.fontSize || 14}px`,
+                          fontFamily: cell?.style?.fontFamily || 'inherit',
+                          fontWeight: cell?.style?.bold ? 'bold' : 'normal',
+                          fontStyle: cell?.style?.italic ? 'italic' : 'normal',
+                          textDecoration: cell?.style?.underline ? 'underline' : 'none',
+                          textAlign: cell?.style?.horizontalAlign || 'left',
+                          backgroundColor: 'transparent',
+                          color: cell?.style?.textColor || 'inherit'
                         }}
                       />
                     ) : (
                       <div style={{
                         width: '100%',
                         minHeight: '24px',
-                        textAlign: cell?.type === 'number' ? 'right' : 'left',
-                        fontWeight: cell?.type === 'formula' ? 'bold' : 'normal',
-                        color: cell?.type === 'formula' ? '#1565c0' : 'inherit'
+                        textAlign: cell?.style?.horizontalAlign || (cell?.type === 'number' ? 'right' : 'left'),
+                        fontWeight: cell?.style?.bold ? 'bold' : (cell?.type === 'formula' ? 'bold' : 'normal'),
+                        fontStyle: cell?.style?.italic ? 'italic' : 'normal',
+                        textDecoration: cell?.style?.underline ? 'underline' : 'none',
+                        color: cell?.style?.textColor || (cell?.type === 'formula' ? '#1565c0' : 'inherit'),
+                        fontSize: `${cell?.style?.fontSize || 14}px`,
+                        fontFamily: cell?.style?.fontFamily || 'inherit'
                       }}>
                         {displayValue}
                       </div>
@@ -427,8 +432,7 @@ export const Table: React.FC<TableProps> = ({  //явно типизируем �
           ))}
         </tbody>
       </table>
-      
-      {/* Контекстное меню */}
+
       {contextMenu && (
         <div
           style={{
@@ -451,10 +455,10 @@ export const Table: React.FC<TableProps> = ({  //явно типизируем �
           <div style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #55e613' }} onClick={handleAddColumn}>
             Добавить столбец
           </div>
-          <div style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #eb2525'}} onClick={handleDeleteColumn}>
+          <div style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #eb2525' }} onClick={handleDeleteColumn}>
             Удалить столбец
           </div>
-          <div style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #7a7a7a' }} onClick={closeContext }>
+          <div style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #7a7a7a' }} onClick={closeContext}>
             Закрыть меню
           </div>
         </div>

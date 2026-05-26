@@ -1,12 +1,32 @@
-// тут чисто иммитация API для работы с документами, используем localStorage для хранения данных В реальном приложении это бы был бэк  сервер с базой данных.
+// services/api.ts
 import type { Document, DocumentData, Cell } from '../types';
 
-const STORAGE_KEY = 'spreadsheet_documents'; // КЛЮЧ ДЛЯ ХРАНЕНИЯ ВСЕХ ДОКУМЕНТОВ В localStorage
-const CURRENT_DOC_KEY = 'spreadsheet_current_doc'; // ТЕКУЩИЙ ДОК
+// БАЗОВЫЙ КЛЮЧ (без привязки к пользователю - только для текущего документа)
+const CURRENT_DOC_KEY = 'spreadsheet_current_doc';
 
-// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ РАБОТЫ С LOCALSTORAGE
-const getStoredDocuments = (): Map<string, DocumentData> => {
-    const stored = localStorage.getItem(STORAGE_KEY);
+// ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ КЛЮЧА С ПРЕФИКСОМ ПОЛЬЗОВАТЕЛЯ
+const getUserKey = (baseKey: string, userId: string): string => {
+    return `user_${userId}_${baseKey}`;
+};
+
+// ПОЛУЧИТЬ ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ ИЗ STORE (вспомогательная функция)
+const getCurrentUserId = (): string | null => {
+    try {
+        const authState = localStorage.getItem('redux_state_auth');
+        if (authState) {
+            const parsed = JSON.parse(authState);
+            return parsed.user?.id || null;
+        }
+    } catch (e) {
+        console.error('Failed to get user id:', e);
+    }
+    return null;
+};
+
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ РАБОТЫ С LOCALSTORAGE (с учётом пользователя)
+const getStoredDocuments = (userId: string): Map<string, DocumentData> => {
+    const key = getUserKey('spreadsheet_documents', userId);
+    const stored = localStorage.getItem(key);
     if (!stored) {
         return new Map();
     }
@@ -14,25 +34,27 @@ const getStoredDocuments = (): Map<string, DocumentData> => {
     return new Map(Object.entries(obj));
 };
 
-const setStoredDocuments = (docs: Map<string, DocumentData>) => {
+const setStoredDocuments = (userId: string, docs: Map<string, DocumentData>) => {
+    const key = getUserKey('spreadsheet_documents', userId);
     const obj = Object.fromEntries(docs);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
+    localStorage.setItem(key, JSON.stringify(obj));
 };
 
-// API ДЛЯ РАБОТЫ С ДОКУМЕНТАМИ
+// API ДЛЯ РАБОТЫ С ДОКУМЕНТАМИ (с учётом пользователя)
 export const api = {
     // ПОЛУЧИТЬ ВСЕ ДОКУМЕНТЫ ПОЛЬЗОВАТЕЛЯ
-    async getDocuments(): Promise<Document[]> {
-        // ИМИТАЦИЯ ЗАДЕРЖКИ СЕТИ
+    async getDocuments(userId?: string): Promise<Document[]> {
         await new Promise(resolve => setTimeout(resolve, 100));
-        
-        const docs = getStoredDocuments();
+
+        const uid = userId || getCurrentUserId();
+        if (!uid) return [];
+
+        const docs = getStoredDocuments(uid);
         const documents: Document[] = [];
-        
+
         for (const [id, docData] of docs) {
-            // СОЗДАЕМ ПРЕВЬЮ (первые 3x3 ячейки)
             const previewData = docData.data.slice(0, 3).map(row => row.slice(0, 3));
-            
+
             documents.push({
                 id,
                 name: docData.name,
@@ -43,29 +65,33 @@ export const api = {
                 previewData
             });
         }
-        
-        // СОРТИРУЕМ ПО ДАТЕ ИЗМЕНЕНИЯ (сначала новые)
-        return documents.sort((a, b) => 
+
+        return documents.sort((a, b) =>
             new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
         );
     },
 
     // ПОЛУЧИТЬ ОДИН ДОКУМЕНТ ПО ID
-    async getDocument(id: string): Promise<DocumentData | null> {
+    async getDocument(id: string, userId?: string): Promise<DocumentData | null> {
         await new Promise(resolve => setTimeout(resolve, 100));
-        
-        const docs = getStoredDocuments();
+
+        const uid = userId || getCurrentUserId();
+        if (!uid) return null;
+
+        const docs = getStoredDocuments(uid);
         return docs.get(id) || null;
     },
 
     // СОЗДАТЬ НОВЫЙ ДОКУМЕНТ
-    async createDocument(name: string, rows: number, cols: number): Promise<DocumentData> {
+    async createDocument(name: string, rows: number, cols: number, userId?: string): Promise<DocumentData> {
         await new Promise(resolve => setTimeout(resolve, 200));
-        
-        const id = Date.now().toString();
+
+        const uid = userId || getCurrentUserId();
+        if (!uid) throw new Error('No user logged in');
+
+        const id = `${uid}_${Date.now()}`;
         const now = new Date().toISOString();
-        
-        // СОЗДАЕМ ПУСТУЮ ТАБЛИЦУ
+
         const data: Cell[][] = [];
         for (let i = 0; i < rows; i++) {
             const row: Cell[] = [];
@@ -78,7 +104,7 @@ export const api = {
             }
             data.push(row);
         }
-        
+
         const newDoc: DocumentData = {
             id,
             name,
@@ -88,85 +114,97 @@ export const api = {
             createdAt: now,
             updatedAt: now
         };
-        
-        const docs = getStoredDocuments();
+
+        const docs = getStoredDocuments(uid);
         docs.set(id, newDoc);
-        setStoredDocuments(docs);
-        
+        setStoredDocuments(uid, docs);
+
         return newDoc;
     },
 
-    // ОБНОВИТЬ ДОКУМЕНТ (ЧАСТИЧНОЕ ОБНОВЛЕНИЕ - PATCH)
-    async updateDocument(id: string, data: Cell[][], rows: number, cols: number): Promise<DocumentData> {
-        await new Promise(resolve => setTimeout(resolve, 300)); // ИМИТАЦИЯ СЕТИ
-        
-        const docs = getStoredDocuments();
+    // ОБНОВИТЬ ДОКУМЕНТ
+    async updateDocument(id: string, data: Cell[][], rows: number, cols: number, userId?: string): Promise<DocumentData> {
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        const uid = userId || getCurrentUserId();
+        if (!uid) throw new Error('No user logged in');
+
+        const docs = getStoredDocuments(uid);
         const existingDoc = docs.get(id);
-        
+
         if (!existingDoc) {
             throw new Error('Document not found');
         }
-        
+
         const updatedDoc: DocumentData = {
             ...existingDoc,
-            data: JSON.parse(JSON.stringify(data)), // ГЛУБОКАЯ КОПИЯ
+            data: JSON.parse(JSON.stringify(data)),
             rows,
             cols,
             updatedAt: new Date().toISOString()
         };
-        
+
         docs.set(id, updatedDoc);
-        setStoredDocuments(docs);
-        
+        setStoredDocuments(uid, docs);
+
         return updatedDoc;
     },
 
     // ПЕРЕИМЕНОВАТЬ ДОКУМЕНТ
-    async renameDocument(id: string, newName: string): Promise<DocumentData> {
+    async renameDocument(id: string, newName: string, userId?: string): Promise<DocumentData> {
         await new Promise(resolve => setTimeout(resolve, 100));
-        
-        const docs = getStoredDocuments();
+
+        const uid = userId || getCurrentUserId();
+        if (!uid) throw new Error('No user logged in');
+
+        const docs = getStoredDocuments(uid);
         const existingDoc = docs.get(id);
-        
+
         if (!existingDoc) {
             throw new Error('Document not found');
         }
-        
+
         const renamedDoc: DocumentData = {
             ...existingDoc,
             name: newName,
             updatedAt: new Date().toISOString()
         };
-        
+
         docs.set(id, renamedDoc);
-        setStoredDocuments(docs);
-        
+        setStoredDocuments(uid, docs);
+
         return renamedDoc;
     },
 
     // УДАЛИТЬ ДОКУМЕНТ
-    async deleteDocument(id: string): Promise<void> {
+    async deleteDocument(id: string, userId?: string): Promise<void> {
         await new Promise(resolve => setTimeout(resolve, 100));
-        
-        const docs = getStoredDocuments();
+
+        const uid = userId || getCurrentUserId();
+        if (!uid) throw new Error('No user logged in');
+
+        const docs = getStoredDocuments(uid);
         docs.delete(id);
-        setStoredDocuments(docs);
+        setStoredDocuments(uid, docs);
     },
 
     // ДУБЛИРОВАТЬ ДОКУМЕНТ
-    async duplicateDocument(id: string): Promise<DocumentData> {
+    async duplicateDocument(id: string, userId?: string): Promise<DocumentData> {
         await new Promise(resolve => setTimeout(resolve, 200));
-        
-        const docs = getStoredDocuments();
+
+        const uid = userId || getCurrentUserId();
+        if (!uid) throw new Error('No user logged in');
+
+        const docs = getStoredDocuments(uid);
         const existingDoc = docs.get(id);
-        
+
         if (!existingDoc) {
             throw new Error('Document not found');
         }
-        
-        const newId = Date.now().toString();
+
+        const newId = `${uid}_${Date.now()}`;
         const now = new Date().toISOString();
-        
+
         const duplicatedDoc: DocumentData = {
             ...existingDoc,
             id: newId,
@@ -174,23 +212,29 @@ export const api = {
             createdAt: now,
             updatedAt: now
         };
-        
+
         docs.set(newId, duplicatedDoc);
-        setStoredDocuments(docs);
-        
+        setStoredDocuments(uid, docs);
+
         return duplicatedDoc;
     },
 
-    // СОХРАНИТЬ ТЕКУЩИЙ ДОКУМЕНТ В localStorage ДЛЯ ВОССТАНОВЛЕНИЯ ПРИ ОБНОВЛЕНИИ
-    setCurrentDocumentId(id: string | null) {
-        if (id) {
-            localStorage.setItem(CURRENT_DOC_KEY, id);
-        } else {
-            localStorage.removeItem(CURRENT_DOC_KEY);
+    // СОХРАНИТЬ ТЕКУЩИЙ ДОКУМЕНТ В localStorage ДЛЯ ВОССТАНОВЛЕНИЯ
+    setCurrentDocumentId(id: string | null, userId?: string) {
+        const uid = userId || getCurrentUserId();
+        if (id && uid) {
+            const key = getUserKey(CURRENT_DOC_KEY, uid);
+            localStorage.setItem(key, id);
+        } else if (uid) {
+            const key = getUserKey(CURRENT_DOC_KEY, uid);
+            localStorage.removeItem(key);
         }
     },
 
-    getCurrentDocumentId(): string | null {
-        return localStorage.getItem(CURRENT_DOC_KEY);
+    getCurrentDocumentId(userId?: string): string | null {
+        const uid = userId || getCurrentUserId();
+        if (!uid) return null;
+        const key = getUserKey(CURRENT_DOC_KEY, uid);
+        return localStorage.getItem(key);
     }
 };

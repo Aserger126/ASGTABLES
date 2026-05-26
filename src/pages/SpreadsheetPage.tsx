@@ -4,10 +4,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Table } from '../components/SimpleTable';
 import { FormulaBar } from '../components/FormulaBar';
 import { TableControls } from '../components/TableControls';
-import { SaveIndicator } from '../components/SaveIndicator';
 import { CSVImportModal } from '../components/CSVImportModal';
+import { FormattingToolbar } from '../components/FormattingToolbar';
+import { ThemeToolbar } from '../components/ThemeToolbar';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { fetchDocumentById, updateDocument, clearCurrentDocument } from '../store/slices/documentsSlice';
+import { fetchDocumentById, clearCurrentDocument } from '../store/slices/documentsSlice';
 import {
     initSheet,
     updateCell,
@@ -19,6 +20,11 @@ import {
     findAndReplace,
     undo,
     redo,
+    applyStyleToSelection,
+    copyRange,
+    pasteRange,
+    clearCells,
+    selectAll,
     selectCanUndo,
     selectCanRedo
 } from '../store/slices/spreadsheetSlice';
@@ -28,6 +34,7 @@ import {
     showNotification
 } from '../store/slices/uiSlice';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { dataToCSV } from '../utils/csvUtils';
 import type { Cell, CellValue, FindReplaceOptions } from '../types';
 
@@ -42,7 +49,7 @@ export const SpreadsheetPage = () => {
     // REDUX STATE
     const { currentDocument, isLoading } = useAppSelector(state => state.documents);
     const { showCSVImportModal, activeCell, saveStatus } = useAppSelector(state => state.ui);
-    const { data: sheetData, rows, cols } = useAppSelector(state => state.spreadsheet);
+    const { data: sheetData, rows, cols, selection } = useAppSelector(state => state.spreadsheet);
     const canUndo = useAppSelector(selectCanUndo);
     const canRedo = useAppSelector(selectCanRedo);
     
@@ -152,6 +159,63 @@ export const SpreadsheetPage = () => {
         }
     };
     
+    // ОБРАБОТЧИКИ ДЛЯ ГОРЯЧИХ КЛАВИШ
+    const handleCopy = () => {
+        if (selection) dispatch(copyRange(selection));
+    };
+    
+    const handleCut = () => {
+        if (selection) {
+            dispatch(copyRange(selection));
+            dispatch(clearCells(selection));
+        }
+    };
+    
+    const handlePaste = () => {
+        if (selection) {
+            dispatch(pasteRange({ startRow: selection.startRow, startCol: selection.startCol }));
+        }
+    };
+    
+    const handleDelete = () => {
+        if (selection) dispatch(clearCells(selection));
+    };
+    
+    const handleSelectAll = () => {
+        dispatch(selectAll());
+    };
+    
+    const handleBold = () => {
+        if (selection) {
+            dispatch(applyStyleToSelection({ selection, style: { bold: true } }));
+        }
+    };
+    
+    const handleItalic = () => {
+        if (selection) {
+            dispatch(applyStyleToSelection({ selection, style: { italic: true } }));
+        }
+    };
+    
+    const handleUnderline = () => {
+        if (selection) {
+            dispatch(applyStyleToSelection({ selection, style: { underline: true } }));
+        }
+    };
+    
+    // ХУК ДЛЯ ГОРЯЧИХ КЛАВИШ
+    useKeyboardShortcuts({
+        onSave: handleExportJSON,
+        onBold: handleBold,
+        onItalic: handleItalic,
+        onUnderline: handleUnderline,
+        onCut: handleCut,
+        onCopy: handleCopy,
+        onPaste: handlePaste,
+        onDelete: handleDelete,
+        onSelectAll: handleSelectAll
+    });
+    
     if (isLoading) {
         return <div style={loadingStyle}>Загрузка документа...</div>;
     }
@@ -162,6 +226,18 @@ export const SpreadsheetPage = () => {
     
     return (
         <div>
+            {/* ВЕРХНЯЯ ПАНЕЛЬ С ФОРМАТИРОВАНИЕМ И ТЕМАМИ */}
+            <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                borderBottom: '1px solid #e0e0e0',
+                flexWrap: 'wrap'
+            }}>
+                <FormattingToolbar />
+                <ThemeToolbar />
+            </div>
+            
             <TableControls
                 onAddRow={() => dispatch(addRow({ afterRow: rows - 1 }))}
                 onAddColumn={() => dispatch(addColumn({ afterCol: cols - 1 }))}
@@ -202,7 +278,7 @@ export const SpreadsheetPage = () => {
             />
             
             <div style={shortcutStyle}>
-                💾 Ctrl+Z - отменить | Ctrl+Y - повторить
+                💾 Ctrl+S - сохранить | Ctrl+Z - отменить | Ctrl+Y - повторить | Ctrl+C/V - копировать/вставить
             </div>
         </div>
     );
@@ -231,5 +307,9 @@ const shortcutStyle: React.CSSProperties = {
     bottom: '20px',
     right: '20px',
     fontSize: '12px',
-    color: '#999'
+    color: '#999',
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    padding: '8px 12px',
+    borderRadius: '8px',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
 };
